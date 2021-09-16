@@ -173,6 +173,8 @@ export default class Plugin extends EventEmitter {
     this.addAction('fold', (kind?: string) => this.handler.fold.fold(kind))
     this.addAction('startCompletion', option => completion.startCompletion(option))
     this.addAction('stopCompletion', () => completion.stop(false))
+    this.addAction('requestCompletion', callbackFnName => completion.requestCompletion(callbackFnName))
+    this.addAction('requestCompletionDone', item => completion.requestCompletionDone(item))
     this.addAction('sourceStat', () => sources.sourceStats())
     this.addAction('refreshSource', name => sources.refresh(name))
     this.addAction('toggleSource', name => sources.toggleSource(name))

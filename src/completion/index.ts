@@ -12,6 +12,11 @@ import Floating, { PumBounding } from './floating'
 import debounce from 'debounce'
 import { byteSlice } from '../util/string'
 import { equals } from '../util/object'
+import * as fs from "fs";
+import * as util from "util";
+import * as path from "path";
+import { homedir } from "os";
+
 const logger = require('../util/logger')('completion')
 const completeItemKeys = ['abbr', 'menu', 'info', 'kind', 'icase', 'dup', 'empty', 'user_data']
 
@@ -38,6 +43,36 @@ export class Completion implements Disposable {
   private insertLeaveTs = 0
   private excludeImages: boolean
 
+  public async requestCompletion(callbackFnName: string): Promise<void> {
+    let { nvim, config } = this
+    let option = await nvim.call('coc#util#get_complete_option') as CompleteOption
+    let { source } = option
+    let doc = workspace.getDocument(option.bufnr)
+    if (!doc || !doc.attached) return
+    // use fixed filetype
+    option.filetype = doc.filetype
+    // current input
+    this.input = option.input
+    let arr: ISource[] = []
+    if (source == null) {
+      arr = sources.getCompleteSources(option)
+    } else {
+      let s = sources.getSource(source)
+      if (s) arr.push(s)
+    }
+    if (!arr.length) return
+    await doc.patchChange()
+    // document get changed, not complete
+    if (doc.changedtick != option.changedtick) return
+    this.complete = new Complete(option, doc, config, arr, nvim)
+    let items = await this.complete.doComplete()
+    await nvim.call(callbackFnName, [items]);
+  }
+
+  public requestCompletionDone(item: VimCompleteItem): void {
+    void this.onCompleteDone(item)
+  }
+
   public init(): void {
     this.config = this.getCompleteConfig()
     workspace.onDidChangeConfiguration(e => {
@@ -55,40 +90,43 @@ export class Completion implements Disposable {
       }
     }, this.disposables)
     this.excludeImages = workspace.getConfiguration('coc.preferences').get<boolean>('excludeImageLinksInMarkdownDocument')
-    this.floating = new Floating(workspace.nvim, workspace.env.isVim)
-    events.on(['InsertCharPre', 'MenuPopupChanged', 'TextChangedI', 'CursorMovedI', 'InsertLeave'], () => {
-      if (this.triggerTimer) {
-        clearTimeout(this.triggerTimer)
-        this.triggerTimer = null
-      }
-    }, this, this.disposables)
-    events.on('InsertCharPre', this.onInsertCharPre, this, this.disposables)
-    events.on('InsertLeave', this.onInsertLeave, this, this.disposables)
-    events.on('InsertEnter', this.onInsertEnter, this, this.disposables)
-    events.on('TextChangedP', this.onTextChangedP, this, this.disposables)
-    events.on('TextChangedI', this.onTextChangedI, this, this.disposables)
-    let fn = debounce(this.onPumChange.bind(this), 20)
-    this.disposables.push({
-      dispose: () => {
-        fn.clear()
-      }
-    })
-    events.on('CompleteDone', async item => {
+    // this.floating = new Floating(workspace.nvim, workspace.env.isVim)
+    // events.on(['InsertCharPre', 'MenuPopupChanged', 'TextChangedI', 'CursorMovedI', 'InsertLeave'], () => {
+    //   if (this.triggerTimer) {
+    //     clearTimeout(this.triggerTimer)
+    //     this.triggerTimer = null
+    //   }
+    // }, this, this.disposables)
+    // events.on('InsertCharPre', this.onInsertCharPre, this, this.disposables)
+    // events.on('InsertLeave', this.onInsertLeave, this, this.disposables)
+    // events.on('InsertEnter', this.onInsertEnter, this, this.disposables)
+    // events.on('TextChangedP', this.onTextChangedP, this, this.disposables)
+    // events.on('TextChangedI', this.onTextChangedI, this, this.disposables)
+    // let fn = debounce(this.onPumChange.bind(this), 20)
+    // this.disposables.push({
+    //   dispose: () => {
+    //     fn.clear()
+    //   }
+    // })
+    events.on('CompleteDone', async itemArg => {
+      const item = { ...itemArg };
+      if (!item.user_data?.startsWith('coc:')) return
+      item.user_data = item.user_data.slice(4);
       this.popupEvent = null
-      if (!this.activated) return
-      fn.clear()
-      this.cancelResolve()
-      this.floating.close()
+      // if (!this.activated) return
+      // fn.clear()
+      // this.cancelResolve()
+      // this.floating.close()
       await this.onCompleteDone(item)
     }, this, this.disposables)
     this.cancelResolve()
-    events.on('MenuPopupChanged', ev => {
-      if (!this.activated || this.isCommandLine) return
-      if (equals(this.popupEvent, ev)) return
-      this.cancelResolve()
-      this.popupEvent = ev
-      fn()
-    }, this, this.disposables)
+    // events.on('MenuPopupChanged', ev => {
+    //   if (!this.activated || this.isCommandLine) return
+    //   if (equals(this.popupEvent, ev)) return
+    //   this.cancelResolve()
+    //   this.popupEvent = ev
+    //   fn()
+    // }, this, this.disposables)
   }
 
   private get nvim(): Neovim {
@@ -211,6 +249,7 @@ export class Completion implements Disposable {
   }
 
   private async showCompletion(col: number, items: ExtendedCompleteItem[]): Promise<void> {
+    return;
     let { nvim, document, option } = this
     let { numberSelect, disableKind, labelMaxLength, disableMenuShortcut, disableMenu } = this.config
     let preselect = this.config.enablePreselect ? items.findIndex(o => o.preselect) : -1
@@ -409,7 +448,8 @@ export class Completion implements Disposable {
 
   private async onCompleteDone(item: VimCompleteItem): Promise<void> {
     let { document, isActivated } = this
-    if (!isActivated || !document || !Is.vimCompleteItem(item)) return
+    // if (!isActivated || !document || !Is.vimCompleteItem(item)) return
+    if (!document || !Is.vimCompleteItem(item)) return
     let opt = Object.assign({}, this.option)
     let resolvedItem = this.getCompleteItem(item)
     this.stop()
