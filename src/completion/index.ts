@@ -119,8 +119,8 @@ export class Completion implements Disposable {
     })
     events.on('CompleteDone', async itemArg => {
       const item = { ...itemArg };
-      if (!item.user_data?.startsWith('coc:')) return
-      item.user_data = item.user_data.slice(4);
+      if (!item.user_data?.startsWith('{"coc!":')) return
+      item.user_data = item.user_data.slice('{"coc!":'.length, -"}".length);
       this.popupEvent = null
       if (!this.activated) return
       fn.clear()
@@ -130,13 +130,13 @@ export class Completion implements Disposable {
     }, this, this.disposables)
     this.cancelResolve()
     events.on('MenuPopupChanged', ev => {
-      if (!(ev.completed_item as any).user_data?.startsWith('coc:')) {
+      if (!(ev.completed_item as any).user_data?.startsWith('{"coc!":')) {
         this.floating.close();
         return
       }
       if (this.isCommandLine) return
       if (equals(this.popupEvent, ev)) return
-      (ev.completed_item as any).user_data = (ev.completed_item as any).user_data.slice(4);
+      (ev.completed_item as any).user_data = (ev.completed_item as any).user_data.slice('{"coc!":'.length, -"}".length);
       this.cancelResolve()
       dump({ ev })
       this.popupEvent = ev
