@@ -5,6 +5,19 @@ import { CompleteOption, FloatConfig, VimCompleteItem, CompleteResult, ExtendedC
 import { fuzzyMatch, getCharCodes } from '../util/fuzzy'
 import { byteSlice, characterIndex } from '../util/string'
 import { matchScore } from './match'
+import * as fs from "fs";
+import * as util from "util";
+import * as path from "path";
+import { homedir } from "os";
+const debugLogFile = path.resolve(homedir(), "node-debug.log");
+
+export const dump = (obj: unknown) => {}
+// export const dump = (obj: unknown) => {
+//   fs.appendFileSync(
+//     debugLogFile,
+//     `${new Date().toLocaleTimeString()}: ${util.inspect(obj)}\n`,
+//   );
+// };
 const logger = require('../util/logger')('completion-complete')
 
 export interface CompleteConfig {
@@ -336,13 +349,24 @@ export default class Complete {
   }
 
   public resolveCompletionItem(item: VimCompleteItem): ExtendedCompleteItem | null {
+    dump(17);
     let { results } = this
+    dump(18);
     if (!results) return null
+    dump(19);
     try {
+      dump(20);
       if (item.user_data) {
-        let { source } = JSON.parse(item.user_data)
+        dump(21);
+        let { source, index } = JSON.parse(item.user_data)
+        dump(22);
         let result = results.find(res => res.source == source)
-        return result.items.find(o => o.user_data == item.user_data)
+        dump(23);
+        dump({ items: result.items });
+        dump(24);
+        // TODO
+        return result.items[index]
+        // return result.items.find(o => o.user_data == item.user_data)
       }
       for (let result of results) {
         let res = result.items.find(o => o.abbr == item.abbr && o.info == item.info)

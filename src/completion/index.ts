@@ -16,6 +16,15 @@ import * as fs from "fs";
 import * as util from "util";
 import * as path from "path";
 import { homedir } from "os";
+const debugLogFile = path.resolve(homedir(), "node-debug.log");
+
+export const dump = (obj: unknown) => {}
+// export const dump = (obj: unknown) => {
+//   fs.appendFileSync(
+//     debugLogFile,
+//     `${new Date().toLocaleTimeString()}: ${util.inspect(obj)}\n`,
+//   );
+// };
 
 const logger = require('../util/logger')('completion')
 const completeItemKeys = ['abbr', 'menu', 'info', 'kind', 'icase', 'dup', 'empty', 'user_data']
@@ -64,7 +73,7 @@ export class Completion implements Disposable {
     await doc.patchChange()
     // document get changed, not complete
     if (doc.changedtick != option.changedtick) return
-    this.complete = new Complete(option, doc, config, arr, nvim)
+    this.start(new Complete(option, doc, config, arr, nvim));
     let items = await this.complete.doComplete()
     await nvim.call(callbackFnName, [items]);
   }
@@ -80,53 +89,59 @@ export class Completion implements Disposable {
         this.config = this.getCompleteConfig()
       }
     }, null, this.disposables)
-    workspace.watchOption('completeopt', async (_, newValue) => {
-      workspace.env.completeOpt = newValue
-      if (!this.isActivated) return
-      if (this.config.autoTrigger === 'always') {
-        let content = await this.nvim.call('execute', ['verbose set completeopt']) as string
-        let lines = content.split(/\r?\n/)
-        console.error(`Some plugin change completeopt during completion: ${lines[lines.length - 1].trim()}!`)
-      }
-    }, this.disposables)
+    // workspace.watchOption('completeopt', async (_, newValue) => {
+    //   workspace.env.completeOpt = newValue
+    //   if (!this.isActivated) return
+    //   if (this.config.autoTrigger === 'always') {
+    //     let content = await this.nvim.call('execute', ['verbose set completeopt']) as string
+    //     let lines = content.split(/\r?\n/)
+    //     console.error(`Some plugin change completeopt during completion: ${lines[lines.length - 1].trim()}!`)
+    //   }
+    // }, this.disposables)
     this.excludeImages = workspace.getConfiguration('coc.preferences').get<boolean>('excludeImageLinksInMarkdownDocument')
-    // this.floating = new Floating(workspace.nvim, workspace.env.isVim)
-    // events.on(['InsertCharPre', 'MenuPopupChanged', 'TextChangedI', 'CursorMovedI', 'InsertLeave'], () => {
-    //   if (this.triggerTimer) {
-    //     clearTimeout(this.triggerTimer)
-    //     this.triggerTimer = null
-    //   }
-    // }, this, this.disposables)
-    // events.on('InsertCharPre', this.onInsertCharPre, this, this.disposables)
-    // events.on('InsertLeave', this.onInsertLeave, this, this.disposables)
-    // events.on('InsertEnter', this.onInsertEnter, this, this.disposables)
-    // events.on('TextChangedP', this.onTextChangedP, this, this.disposables)
-    // events.on('TextChangedI', this.onTextChangedI, this, this.disposables)
-    // let fn = debounce(this.onPumChange.bind(this), 20)
-    // this.disposables.push({
-    //   dispose: () => {
-    //     fn.clear()
-    //   }
-    // })
+    this.floating = new Floating(workspace.nvim, workspace.env.isVim)
+    events.on(['InsertCharPre', 'MenuPopupChanged', 'TextChangedI', 'CursorMovedI', 'InsertLeave'], () => {
+      if (this.triggerTimer) {
+        clearTimeout(this.triggerTimer)
+        this.triggerTimer = null
+      }
+    }, this, this.disposables)
+    events.on('InsertCharPre', this.onInsertCharPre, this, this.disposables)
+    events.on('InsertLeave', this.onInsertLeave, this, this.disposables)
+    events.on('InsertEnter', this.onInsertEnter, this, this.disposables)
+    events.on('TextChangedP', this.onTextChangedP, this, this.disposables)
+    events.on('TextChangedI', this.onTextChangedI, this, this.disposables)
+    let fn = debounce(this.onPumChange.bind(this), 20)
+    this.disposables.push({
+      dispose: () => {
+        fn.clear()
+      }
+    })
     events.on('CompleteDone', async itemArg => {
       const item = { ...itemArg };
       if (!item.user_data?.startsWith('coc:')) return
       item.user_data = item.user_data.slice(4);
       this.popupEvent = null
-      // if (!this.activated) return
-      // fn.clear()
-      // this.cancelResolve()
-      // this.floating.close()
+      if (!this.activated) return
+      fn.clear()
+      this.cancelResolve()
+      this.floating.close()
       await this.onCompleteDone(item)
     }, this, this.disposables)
     this.cancelResolve()
-    // events.on('MenuPopupChanged', ev => {
-    //   if (!this.activated || this.isCommandLine) return
-    //   if (equals(this.popupEvent, ev)) return
-    //   this.cancelResolve()
-    //   this.popupEvent = ev
-    //   fn()
-    // }, this, this.disposables)
+    events.on('MenuPopupChanged', ev => {
+      if (!(ev.completed_item as any).user_data?.startsWith('coc:')) {
+        this.floating.close();
+        return
+      }
+      if (this.isCommandLine) return
+      if (equals(this.popupEvent, ev)) return
+      (ev.completed_item as any).user_data = (ev.completed_item as any).user_data.slice(4);
+      this.cancelResolve()
+      dump({ ev })
+      this.popupEvent = ev
+      fn()
+    }, this, this.disposables)
   }
 
   private get nvim(): Neovim {
@@ -214,6 +229,7 @@ export class Completion implements Disposable {
   }
 
   private async resumeCompletion(force = false): Promise<void> {
+    return;
     let { document, complete } = this
     if (!document
       || complete.isCanceled
@@ -539,22 +555,34 @@ export class Completion implements Disposable {
   }
 
   private async onPumChange(): Promise<void> {
+    dump(1);
     if (!this.popupEvent) return
+    dump(2);
     let { col, row, height, width, scrollbar } = this.popupEvent
+    dump(3);
     let bounding: PumBounding = { col, row, height, width, scrollbar }
+    dump(4);
     let resolvedItem = this.getCompleteItem(this.selectedItem)
+    dump(5);
+    dump({ results: this.complete.results, completion: this.complete, is: Is.vimCompleteItem(this.selectedItem) });
+    dump({ resolvedItem, selectedItem: this.selectedItem, popupEvent: this.popupEvent });
     if (!resolvedItem) {
+      dump(6);
       this.floating.close()
       return
     }
+    dump(7);
     let source = this.resolveTokenSource = new CancellationTokenSource()
     let { token } = source
     await this.doCompleteResolve(resolvedItem, token)
     if (this.resolveTokenSource == source) {
       this.resolveTokenSource = null
     }
+    dump(8);
     source.dispose()
+    dump(9);
     if (token.isCancellationRequested) return
+    dump(10);
     let docs = resolvedItem.documentation
     if (!docs && resolvedItem.info) {
       let { info } = resolvedItem
@@ -570,9 +598,9 @@ export class Completion implements Disposable {
           excludeImages: this.excludeImages
         }), source.token)
       }
-      if (!this.isActivated) {
-        this.floating.close()
-      }
+      // if (!this.isActivated) {
+      //   this.floating.close()
+      // }
     }
   }
 
@@ -583,9 +611,9 @@ export class Completion implements Disposable {
       this.complete.dispose()
     }
     this.complete = complete
-    if (!this.config.keepCompleteopt) {
-      this.nvim.command(`noa set completeopt=${this.completeOpt}`, true)
-    }
+    // if (!this.config.keepCompleteopt) {
+    //   this.nvim.command(`noa set completeopt=${this.completeOpt}`, true)
+    // }
   }
 
   private cancelResolve(): void {
@@ -612,9 +640,9 @@ export class Completion implements Disposable {
     if (this.config.numberSelect) {
       nvim.call('coc#_unmap', [], true)
     }
-    if (!this.config.keepCompleteopt) {
-      nvim.command(`noa set completeopt=${workspace.completeOpt}`, true)
-    }
+    // if (!this.config.keepCompleteopt) {
+    //   nvim.command(`noa set completeopt=${workspace.completeOpt}`, true)
+    // }
     nvim.command(`let g:coc#_context = {'start': 0, 'preselect': -1,'candidates': []}`, true)
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
     nvim.resumeNotification(false, true)
@@ -650,7 +678,9 @@ export class Completion implements Disposable {
   }
 
   private getCompleteItem(item: VimCompleteItem | {} | null): ExtendedCompleteItem | null {
+    dump(15);
     if (!this.complete || !Is.vimCompleteItem(item)) return null
+    dump(16);
     return this.complete.resolveCompletionItem(item)
   }
 
