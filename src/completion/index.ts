@@ -12,20 +12,6 @@ import Floating, { PumBounding } from './floating'
 import debounce from 'debounce'
 import { byteSlice } from '../util/string'
 import { equals } from '../util/object'
-import * as fs from "fs";
-import * as util from "util";
-import * as path from "path";
-import { homedir } from "os";
-const debugLogFile = path.resolve(homedir(), "node-debug.log");
-
-export const dump = (obj: unknown) => {}
-// export const dump = (obj: unknown) => {
-//   fs.appendFileSync(
-//     debugLogFile,
-//     `${new Date().toLocaleTimeString()}: ${util.inspect(obj)}\n`,
-//   );
-// };
-
 const logger = require('../util/logger')('completion')
 const completeItemKeys = ['abbr', 'menu', 'info', 'kind', 'icase', 'dup', 'empty', 'user_data']
 
@@ -119,8 +105,7 @@ export class Completion implements Disposable {
     })
     events.on('CompleteDone', async itemArg => {
       const item = { ...itemArg };
-      if (!item.user_data?.startsWith('{"coc!":')) return
-      item.user_data = item.user_data.slice('{"coc!":'.length, -"}".length);
+      if (typeof item.user_data !== 'string' || !item.user_data?.startsWith('{"cid":')) return
       this.popupEvent = null
       if (!this.activated) return
       fn.clear()
@@ -130,15 +115,20 @@ export class Completion implements Disposable {
     }, this, this.disposables)
     this.cancelResolve()
     events.on('MenuPopupChanged', ev => {
-      if (!(ev.completed_item as any).user_data?.startsWith('{"coc!":')) {
+      logger.info('MenuPopupChanged', { ev });
+      if (typeof (ev.completed_item as any).user_data !== 'string' || !(ev.completed_item as any).user_data?.startsWith('{"cid":')) {
         this.floating.close();
         return
       }
-      if (this.isCommandLine) return
+      logger.info('MenuPopupChanged', 1, this.activated, this.isCommandLine);
+      if (!this.activated || this.isCommandLine) return
+      logger.info('MenuPopupChanged', 2);
       if (equals(this.popupEvent, ev)) return
-      (ev.completed_item as any).user_data = (ev.completed_item as any).user_data.slice('{"coc!":'.length, -"}".length);
+      logger.info('MenuPopupChanged', 3);
+      logger.info('MenuPopupChanged', 4);
       this.cancelResolve()
-      dump({ ev })
+      logger.info('MenuPopupChanged', 5);
+      logger.info({ ev })
       this.popupEvent = ev
       fn()
     }, this, this.disposables)
@@ -223,6 +213,7 @@ export class Completion implements Disposable {
     try {
       await this._doComplete(option)
     } catch (e) {
+      logger.info('stop:startCompletion');
       this.stop()
       logger.error('Complete error:', e.stack)
     }
@@ -328,6 +319,7 @@ export class Completion implements Disposable {
     let items = await this.complete.doComplete()
     if (complete.isCanceled) return
     if (items.length == 0 && !complete.isCompleting) {
+      logger.info('stop:_doComplete');
       this.stop()
       return
     }
@@ -363,6 +355,7 @@ export class Completion implements Disposable {
     if (info.pre.match(/^\s*/)[0] !== option.line.match(/^\s*/)[0]) {
       // Can't handle indent change
       logger.warn('Complete stopped by indent change.')
+      logger.info('stop:onTextChangedP');
       this.stop(false)
       return
     }
@@ -398,11 +391,13 @@ export class Completion implements Disposable {
     // Ignore change with other buffer
     if (!option || bufnr != option.bufnr) return
     if (option.linenr != info.lnum || option.col >= info.col - 1) {
+      logger.info('stop:onTextChangedI:1');
       this.stop()
       return
     }
     // Completion is canceled by <C-e>
     if (noChange && !latestInsertChar) {
+      logger.info('stop:onTextChangedI:2');
       this.stop(false)
       return
     }
@@ -415,6 +410,7 @@ export class Completion implements Disposable {
       let last = pretext[pretext.length - 1]
       if (sources.shouldCommit(resolvedItem, last)) {
         let { linenr, col, line, colnr } = this.option
+        logger.info('stop:onTextChangedI:3');
         this.stop()
         let { word } = resolvedItem
         let newLine = `${line.slice(0, col)}${word}${latestInsertChar}${line.slice(colnr - 1)}`
@@ -468,6 +464,7 @@ export class Completion implements Disposable {
     if (!document || !Is.vimCompleteItem(item)) return
     let opt = Object.assign({}, this.option)
     let resolvedItem = this.getCompleteItem(item)
+    logger.info('stop:onCompleteDone');
     this.stop()
     if (!resolvedItem) return
     let timestamp = this.insertCharTs
@@ -505,6 +502,7 @@ export class Completion implements Disposable {
 
   private async onInsertLeave(): Promise<void> {
     this.insertLeaveTs = Date.now()
+    logger.info('stop:onInsertLeave');
     this.stop(false)
   }
 
@@ -555,34 +553,34 @@ export class Completion implements Disposable {
   }
 
   private async onPumChange(): Promise<void> {
-    dump(1);
+    logger.info(1);
     if (!this.popupEvent) return
-    dump(2);
+    logger.info(2);
     let { col, row, height, width, scrollbar } = this.popupEvent
-    dump(3);
+    logger.info(3);
     let bounding: PumBounding = { col, row, height, width, scrollbar }
-    dump(4);
+    logger.info(4);
     let resolvedItem = this.getCompleteItem(this.selectedItem)
-    dump(5);
-    dump({ results: this.complete.results, completion: this.complete, is: Is.vimCompleteItem(this.selectedItem) });
-    dump({ resolvedItem, selectedItem: this.selectedItem, popupEvent: this.popupEvent });
+    logger.info(5);
+    logger.info({ results: this.complete?.results, completion: this.complete, is: Is.vimCompleteItem(this.selectedItem) });
+    logger.info({ resolvedItem, selectedItem: this.selectedItem, popupEvent: this.popupEvent });
     if (!resolvedItem) {
-      dump(6);
+      logger.info(6);
       this.floating.close()
       return
     }
-    dump(7);
+    logger.info(7);
     let source = this.resolveTokenSource = new CancellationTokenSource()
     let { token } = source
     await this.doCompleteResolve(resolvedItem, token)
     if (this.resolveTokenSource == source) {
       this.resolveTokenSource = null
     }
-    dump(8);
+    logger.info(8);
     source.dispose()
-    dump(9);
+    logger.info(9);
     if (token.isCancellationRequested) return
-    dump(10);
+    logger.info(10);
     let docs = resolvedItem.documentation
     if (!docs && resolvedItem.info) {
       let { info } = resolvedItem
@@ -678,9 +676,9 @@ export class Completion implements Disposable {
   }
 
   private getCompleteItem(item: VimCompleteItem | {} | null): ExtendedCompleteItem | null {
-    dump(15);
+    logger.info(15);
     if (!this.complete || !Is.vimCompleteItem(item)) return null
-    dump(16);
+    logger.info(16);
     return this.complete.resolveCompletionItem(item)
   }
 
