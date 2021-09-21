@@ -103,9 +103,9 @@ export class Sources {
 
   private createNativeSources(): void {
     try {
-      this.disposables.push((require('./native/around')).regist(this.sourceMap))
-      this.disposables.push((require('./native/buffer')).regist(this.sourceMap))
-      this.disposables.push((require('./native/file')).regist(this.sourceMap))
+      // this.disposables.push((require('./native/around')).regist(this.sourceMap))
+      // this.disposables.push((require('./native/buffer')).regist(this.sourceMap))
+      // this.disposables.push((require('./native/file')).regist(this.sourceMap))
     } catch (e) {
       console.error('Create source error:' + e.message)
     }
