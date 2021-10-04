@@ -38,7 +38,7 @@ export class Completion implements Disposable {
   private insertLeaveTs = 0
   private excludeImages: boolean
 
-  public async requestCompletion(callbackFnName: string): Promise<void> {
+  public async requestCompletion(callbackFnName: string, args: unknown[]): Promise<void> {
     let { nvim, config } = this
     let option = await nvim.call('coc#util#get_complete_option') as CompleteOption
     let { source } = option
@@ -61,7 +61,7 @@ export class Completion implements Disposable {
     if (doc.changedtick != option.changedtick) return
     this.start(new Complete(option, doc, config, arr, nvim));
     let items = await this.complete.doComplete()
-    await nvim.call(callbackFnName, [items]);
+    await nvim.call(callbackFnName, [items, ...args]);
   }
 
   public requestCompletionDone(item: VimCompleteItem): void {
