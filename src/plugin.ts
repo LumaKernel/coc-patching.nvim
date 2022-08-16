@@ -168,6 +168,8 @@ export default class Plugin extends EventEmitter {
     this.addAction('inspectSemanticToken', () => this.handler.semanticHighlighter.inspectSemanticToken())
     this.addAction('semanticHighlight', () => this.handler.semanticHighlighter.highlightCurrent())
     this.addAction('showSemanticHighlightInfo', () => this.handler.semanticHighlighter.showHighlightInfo())
+
+    this.addAction('requestCompletion', (callbackFnName: string, args: unknown[]) => completion.requestCompletion(callbackFnName, args))
   }
 
   private addAction(key: string, fn: Function): void {

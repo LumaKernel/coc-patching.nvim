@@ -35,6 +35,57 @@ export class Completion implements Disposable {
   private complete: Complete | null = null
   public activeItems: ReadonlyArray<ExtendedCompleteItem> | undefined
 
+  public async requestCompletion(callbackFnName: string, args: unknown[]): Promise<void> {
+    let { nvim } = this
+    let option = await nvim.call('coc#util#get_complete_option') as CompleteOption
+    let { source } = option
+
+    // copy of startCompletion
+    let doc = workspace.getAttachedDocument(option.bufnr)
+    option.filetype = doc.filetype
+    logger.debug('trigger completion with', option)
+    this.stop(true)
+    this.pretext = byteSlice(option.line, 0, option.colnr - 1)
+    let sourceList: ISource[] = []
+    if (source == null) {
+      sourceList = getSources(option)
+    } else {
+      let s = sources.getSource(source)
+      if (s) sourceList.push(s)
+    }
+    if (!sourceList || sourceList.length === 0) return
+    let complete = this.complete = new Complete(
+      option,
+      doc,
+      this.config,
+      sourceList,
+      this.nvim)
+    this._activated = true
+    events.completing = true
+    complete.onDidRefresh(async () => {
+      if (this.triggerTimer != null) {
+        clearTimeout(this.triggerTimer)
+      }
+      if (complete.isEmpty) {
+        this.stop(false)
+        return
+      }
+      if (this.inserted) return
+      // await this.filterResults()
+      const items = await this.getFilterResults()
+      this.activeItems = items
+      await nvim.call(callbackFnName, [items, ...args])
+    })
+    let shouldStop = await complete.doComplete()
+    if (shouldStop) this.stop(false)
+    //
+
+    // if (!doc || !doc.attached) return
+    await doc.patchChange()
+    // document get changed, not complete
+    if (doc.changedtick != option.changedtick) return
+  }
+
   public init(): void {
     this.nvim = workspace.nvim
     this.getCompleteConfig()
@@ -144,6 +195,7 @@ export class Completion implements Disposable {
   }
 
   public async startCompletion(option: CompleteOption, sourceList?: ISource[]): Promise<void> {
+    return
     let doc = workspace.getAttachedDocument(option.bufnr)
     option.filetype = doc.filetype
     logger.debug('trigger completion with', option)
@@ -377,6 +429,7 @@ export class Completion implements Disposable {
   }
 
   private async filterResults(): Promise<void> {
+    return
     let { complete } = this
     let search = this.getResumeInput()
     if (search == null) {
@@ -391,6 +444,23 @@ export class Completion implements Disposable {
       return
     }
     this.showCompletion(items, search)
+  }
+
+  private async getFilterResults() {
+    let { complete } = this
+    let search = this.getResumeInput()
+    if (search == null) {
+      // this.stop(true)
+      return
+    }
+    let items = await complete.filterResults(search)
+    // cancelled
+    if (items === undefined) return
+    if (items.length == 0) {
+      if (!complete.isCompleting) this.stop(true)
+      return
+    }
+    return items
   }
 
   private cancel(): void {
