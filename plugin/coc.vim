@@ -716,61 +716,58 @@ augroup coc_nvim__
     autocmd CompleteChanged *   call s:Autocmd('MenuPopupChanged', get(get(get(v:, 'event', {}), 'completed_item', {}), 'user_data', {}), win_screenpos(winnr())[0] + winline() - 2)
   endif
 
-  if coc#rpc#started()
-    autocmd VimEnter            * call coc#rpc#notify('VimEnter', [])
-  elseif get(g:, 'coc_start_at_startup', 1)
-    autocmd VimEnter            * call coc#rpc#start_server()
-  endif
-  if s:is_vim
-    if exists('##DirChanged')
-      autocmd DirChanged        * call s:Autocmd('DirChanged', getcwd())
-    endif
-    if exists('##TerminalOpen')
-      autocmd TerminalOpen      * call s:Autocmd('TermOpen', +expand('<abuf>'))
-    endif
-  else
-    autocmd DirChanged        * call s:Autocmd('DirChanged', get(v:event, 'cwd', ''))
-    autocmd TermOpen          * call s:Autocmd('TermOpen', +expand('<abuf>'))
-    autocmd TermClose         * call s:Autocmd('TermClose', +expand('<abuf>'))
-    autocmd CursorMoved       * call coc#float#nvim_refresh_scrollbar(win_getid())
-    autocmd WinEnter          * call coc#float#nvim_win_enter(win_getid())
-    if exists('##WinClosed')
-      autocmd WinClosed       * call coc#float#close_related(+expand('<afile>'))
-      autocmd WinClosed       * call s:Autocmd('WinClosed', +expand('<afile>'))
-    endif
-  endif
-  if has('nvim-0.4.0') || has('patch-8.1.1719')
-    autocmd CursorHold        * call coc#float#check_related()
-  endif
-  autocmd WinLeave            * call s:Autocmd('WinLeave', win_getid())
-  autocmd WinEnter            * call s:Autocmd('WinEnter', win_getid())
-  autocmd BufWinLeave         * call s:Autocmd('BufWinLeave', +expand('<abuf>'), bufwinid(+expand('<abuf>')))
-  autocmd BufWinEnter         * call s:Autocmd('BufWinEnter', +expand('<abuf>'), win_getid())
-  autocmd FileType            * call s:Autocmd('FileType', expand('<amatch>'), +expand('<abuf>'))
-  autocmd CompleteDone        * call s:Autocmd('CompleteDone', get(get(v:, 'completed_item', {}), 'user_data', {}))
-  autocmd InsertCharPre       * call s:Autocmd('InsertCharPre', v:char, bufnr('%'))
-  if exists('##TextChangedP')
-    autocmd TextChangedP        * call s:Autocmd('TextChangedP', +expand('<abuf>'), {'lnum': line('.'), 'col': col('.'), 'pre': strpart(getline('.'), 0, col('.') - 1), 'changedtick': b:changedtick})
-  endif
-  autocmd TextChangedI        * call s:Autocmd('TextChangedI', +expand('<abuf>'), {'lnum': line('.'), 'col': col('.'), 'pre': strpart(getline('.'), 0, col('.') - 1), 'changedtick': b:changedtick})
-  autocmd InsertLeave         * call s:Autocmd('InsertLeave', +expand('<abuf>'))
-  autocmd InsertEnter         * call s:Autocmd('InsertEnter', +expand('<abuf>'))
-  autocmd BufHidden           * call s:Autocmd('BufHidden', +expand('<abuf>'))
-  autocmd BufEnter            * call s:Autocmd('BufEnter', +expand('<abuf>'))
-  autocmd TextChanged         * call s:Autocmd('TextChanged', +expand('<abuf>'), getbufvar(+expand('<abuf>'), 'changedtick'))
-  autocmd BufWritePost        * call s:Autocmd('BufWritePost', +expand('<abuf>'))
-  autocmd CursorMoved         * call s:Autocmd('CursorMoved', +expand('<abuf>'), [line('.'), col('.')])
-  autocmd CursorMovedI        * call s:Autocmd('CursorMovedI', +expand('<abuf>'), [line('.'), col('.')])
-  autocmd CursorHold          * call s:Autocmd('CursorHold', +expand('<abuf>'))
-  autocmd CursorHoldI         * call s:Autocmd('CursorHoldI', +expand('<abuf>'))
-  autocmd BufNewFile,BufReadPost * call s:Autocmd('BufCreate', +expand('<abuf>'))
-  autocmd BufUnload           * call s:Autocmd('BufUnload', +expand('<abuf>'))
-  autocmd BufWritePre         * call s:SyncAutocmd('BufWritePre', +expand('<abuf>'))
-  autocmd FocusGained         * if mode() !~# '^c' | call s:Autocmd('FocusGained') | endif
-  autocmd FocusLost           * call s:Autocmd('FocusLost')
-  autocmd VimResized          * call s:Autocmd('VimResized', &columns, &lines)
-  autocmd VimLeavePre         * let g:coc_vim_leaving = 1
-  autocmd BufReadCmd,FileReadCmd,SourceCmd list://* call coc#list#setup(expand('<amatch>'))
-  autocmd BufWriteCmd __coc_refactor__* :call coc#rpc#notify('saveRefactor', [+expand('<abuf>')])
-  autocmd ColorScheme * call s:Hi()
+  " if coc#rpc#started()
+  "   autocmd VimEnter            * call coc#rpc#notify('VimEnter', [])
+  " elseif get(g:, 'coc_start_at_startup', 1)
+  "   autocmd VimEnter            * call coc#rpc#start_server()
+  " endif
+  " if s:is_vim
+  "   if exists('##DirChanged')
+  "     autocmd DirChanged        * call s:Autocmd('DirChanged', getcwd())
+  "   endif
+  "   if exists('##TerminalOpen')
+  "     autocmd TerminalOpen      * call s:Autocmd('TermOpen', +expand('<abuf>'))
+  "   endif
+  " else
+  "   autocmd DirChanged        * call s:Autocmd('DirChanged', get(v:event, 'cwd', ''))
+  "   autocmd TermOpen          * call s:Autocmd('TermOpen', +expand('<abuf>'))
+  "   autocmd TermClose         * call s:Autocmd('TermClose', +expand('<abuf>'))
+  "   autocmd CursorMoved       * call coc#float#nvim_refresh_scrollbar(win_getid())
+  "   autocmd WinEnter          * call coc#float#nvim_win_enter(win_getid())
+  "   if exists('##WinClosed')
+  "     autocmd WinClosed       * call coc#float#close_related(+expand('<afile>'))
+  "     autocmd WinClosed       * call s:Autocmd('WinClosed', +expand('<afile>'))
+  "   endif
+  " endif
+  " if has('nvim-0.4.0') || has('patch-8.1.1719')
+  "   autocmd CursorHold        * call coc#float#check_related()
+  " endif
+  " autocmd WinLeave            * call s:Autocmd('WinLeave', win_getid())
+  " autocmd WinEnter            * call s:Autocmd('WinEnter', win_getid())
+  " autocmd BufWinLeave         * call s:Autocmd('BufWinLeave', +expand('<abuf>'), bufwinid(+expand('<abuf>')))
+  " autocmd BufWinEnter         * call s:Autocmd('BufWinEnter', +expand('<abuf>'), win_getid())
+  " autocmd FileType            * call s:Autocmd('FileType', expand('<amatch>'), +expand('<abuf>'))
+  " autocmd CompleteDone        * call s:Autocmd('CompleteDone', get(get(v:, 'completed_item', {}), 'user_data', {}))
+  " autocmd InsertCharPre       * call s:Autocmd('InsertCharPre', v:char, bufnr('%'))
+  " if exists('##TextChangedP')
+  "   autocmd TextChangedP        * call s:Autocmd('TextChangedP', +expand('<abuf>'), {'lnum': line('.'), 'col': col('.'), 'pre': strpart(getline('.'), 0, col('.') - 1), 'changedtick': b:changedtick})
+  " endif
+  " autocmd TextChangedI        * call s:Autocmd('TextChangedI', +expand('<abuf>'), {'lnum': line('.'), 'col': col('.'), 'pre': strpart(getline('.'), 0, col('.') - 1), 'changedtick': b:changedtick})
+  " autocmd InsertLeave         * call s:Autocmd('InsertLeave', +expand('<abuf>'))
+  " autocmd InsertEnter         * call s:Autocmd('InsertEnter', +expand('<abuf>'))
+  " autocmd BufHidden           * call s:Autocmd('BufHidden', +expand('<abuf>'))
+  " autocmd BufEnter            * call s:Autocmd('BufEnter', +expand('<abuf>'))
+  " autocmd TextChanged         * call s:Autocmd('TextChanged', +expand('<abuf>'), getbufvar(+expand('<abuf>'), 'changedtick'))
+  " autocmd BufWritePost        * call s:Autocmd('BufWritePost', +expand('<abuf>'))
+  " autocmd CursorMoved         * call s:Autocmd('CursorMoved', +expand('<abuf>'), [line('.'), col('.')])
+  " autocmd CursorMovedI        * call s:Autocmd('CursorMovedI', +expand('<abuf>'), [line('.'), col('.')])
+  " autocmd CursorHold          * call s:Autocmd('CursorHold', +expand('<abuf>'))
+  " autocmd CursorHoldI         * call s:Autocmd('CursorHoldI', +expand('<abuf>'))
+  " autocmd BufNewFile,BufReadPost * call s:Autocmd('BufCreate', +expand('<abuf>'))
+  " autocmd BufUnload           * call s:Autocmd('BufUnload', +expand('<abuf>'))
+  " autocmd BufWritePre         * call s:SyncAutocmd('BufWritePre', +expand('<abuf>'))
+  " autocmd FocusGained         * if mode() !~# '^c' | call s:Autocmd('FocusGained') | endif
+  " autocmd FocusLost           * call s:Autocmd('FocusLost')
+  " autocmd VimResized          * call s:Autocmd('VimResized', &columns, &lines)
+  " autocmd VimLeavePre         * let g:coc_vim_leaving = 1
 augroup end
